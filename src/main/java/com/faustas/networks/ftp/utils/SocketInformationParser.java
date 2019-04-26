@@ -29,7 +29,7 @@ public class SocketInformationParser {
      * @return socket information for opening new data socket to FTP server
      * @throws IllegalArgumentException when provided data violates mentioned format
      */
-    public SocketInformation parse() throws IllegalArgumentException {
+    public ConnectionInfo parse() throws IllegalArgumentException {
         StringTokenizer tokenizer = new StringTokenizer(socketData, ",");
 
         try {
@@ -40,7 +40,7 @@ public class SocketInformationParser {
 
             logger.info("Socket information parsed successfully: {}:{}", ip, port);
 
-            return new SocketInformation(ip, port);
+            return new ConnectionInfo(ip, port);
         } catch (NoSuchElementException | NumberFormatException ex) {
             throw new IllegalArgumentException("Provide socket data in \"(X, Y, Z, K, L, N)\" format");
         }

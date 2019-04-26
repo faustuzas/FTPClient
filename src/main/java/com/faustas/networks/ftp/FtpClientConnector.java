@@ -1,37 +1,42 @@
 package com.faustas.networks.ftp;
 
+import com.faustas.networks.ftp.commands.PasswordCommand;
+import com.faustas.networks.ftp.commands.UserLoginCommand;
 import com.faustas.networks.ftp.exceptions.FtpAuthenticationFailed;
 import com.faustas.networks.ftp.exceptions.FtpException;
+import com.faustas.networks.ftp.utils.ConnectionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.net.Socket;
 
 public class FtpClientConnector {
     private static final Logger logger = LoggerFactory.getLogger(FtpClientConnector.class);
 
     private final String host;
     private final int port;
+    private final FtpConnectionFactory ftpConnectionFactory;
 
-    private FtpClientConnector(String host, int port) {
-        this.host = host;
-        this.port = port;
+    private FtpClientConnector(Builder builder) {
+        this.host = builder.host;
+        this.port = builder.port;
+        this.ftpConnectionFactory = builder.connectionFactory;
     }
 
     public FtpClient connect(String user, String password) throws IOException, FtpException {
-        FtpSocketManager socketManager = new FtpSocketManager(new Socket(host, port));
+        FtpConnectionManager connectionManager = FtpConnectionManager.of(
+                ftpConnectionFactory.getConnection(new ConnectionInfo(host, port)));
 
         // Get initial response, to check if server is alive
-        socketManager.expectToReceiveStatus(FtpStatusCode.SERVICE_READY);
+        connectionManager.expectToReceiveStatus(FtpStatusCode.SERVICE_READY);
 
         // Begin login process by sending username
-        socketManager.send(FtpCommands.user(user));
-            while (true) {
-            FtpStatusCode statusCode = socketManager.receiveStatus();
+        connectionManager.send(new UserLoginCommand(user));
+        while (true) {
+            FtpStatusCode statusCode = connectionManager.receiveStatus();
 
             if (FtpStatusCode.USERNAME_OK.equals(statusCode)) {
-                socketManager.send(FtpCommands.password(password));
+                connectionManager.send(new PasswordCommand(password));
             } else if (FtpStatusCode.BAD_PASSWORD.equals(statusCode)) {
                 logger.debug("FTP denied access with this username-password pair");
                 throw new FtpAuthenticationFailed();
@@ -41,7 +46,7 @@ public class FtpClientConnector {
             }
         }
 
-        return new FtpClient(socketManager);
+        return new FtpClient(connectionManager, ftpConnectionFactory);
     }
 
     public FtpClient connect() throws IOException, FtpException {
@@ -49,8 +54,11 @@ public class FtpClientConnector {
     }
 
     public static class Builder {
+
         private String host = "localhost";
         private int port = 21;
+
+        private FtpConnectionFactory connectionFactory = new DefaultConnectionFactory();
 
         public Builder host(String host) {
             this.host = host;
@@ -62,8 +70,13 @@ public class FtpClientConnector {
             return this;
         }
 
+        public Builder connectionFactory(FtpConnectionFactory connectionFactory) {
+            this.connectionFactory = connectionFactory;
+            return this;
+        }
+
         public FtpClientConnector build() {
-            return new FtpClientConnector(host, port);
+            return new FtpClientConnector(this);
         }
     }
 }

@@ -1,30 +1,42 @@
 package com.faustas.networks.ftp;
 
+import com.faustas.networks.ftp.commands.*;
 import com.faustas.networks.ftp.exceptions.*;
-import com.faustas.networks.ftp.utils.SocketInformation;
+import com.faustas.networks.ftp.utils.ConnectionInfo;
 import com.faustas.networks.ftp.utils.SocketInformationParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.net.Socket;
 import java.util.*;
 import java.util.regex.Matcher;
 
 public class FtpClient implements Closeable {
     private final static Logger logger = LoggerFactory.getLogger(FtpClient.class);
 
-    private final FtpSocketManager socketManager;
+    private final FtpConnectionManager mainConnectionManager;
+    private final FtpConnectionFactory connectionFactory;
 
-    FtpClient(FtpSocketManager socketManager) {
-        this.socketManager = socketManager;
+    FtpClient(FtpConnectionManager mainConnectionManager, FtpConnectionFactory connectionFactory) {
+        this.mainConnectionManager = mainConnectionManager;
+        this.connectionFactory = connectionFactory;
     }
 
-    public String fetchWorkingDirectory() throws FtpException, IOException {
-        socketManager.send(FtpCommands.workingDirectory());
-        String response = socketManager.receiveString();
+    public void createDirectory(String directory) throws FtpException, IOException {
+        mainConnectionManager.send(new MakeDirectoryCommand(directory))
+                .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CREATED);
+    }
+
+    public void changeWorkingDirectory(String directory) throws FtpException, IOException {
+        mainConnectionManager.send(new ChangeWorkingDirectory(directory))
+            .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CHANGED);
+    }
+
+    public String getWorkingDirectory() throws FtpException, IOException {
+        mainConnectionManager.send(new PrintWorkingDirectoryCommand());
+        String response = mainConnectionManager.receiveString();
         FtpStatusCode.extractCode(response)
-                .expect(FtpStatusCode.WORKING_DIRECTORY);
+                .expect(FtpStatusCode.DIRECTORY_FETCHED);
 
         Matcher matcher = FtpPatterns.WORKING_DIRECTORY.matcher(response);
         if (!matcher.find()) {
@@ -35,25 +47,25 @@ public class FtpClient implements Closeable {
         return matcher.group(1);
     }
 
-    public List<String> fetchWorkingDirectoryFilesList() throws IOException, FtpException {
-        try(FtpSocketManager dataSocketManager = enterPassiveMode()) {
+    public List<String> listFiles() throws IOException, FtpException {
+        try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
             // Request for list of files
-            socketManager.send(FtpCommands.list());
-            socketManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
+            mainConnectionManager.send(new ListFilesCommand());
+            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
 
             String result = dataSocketManager.receiveBytesAsString();
 
-            socketManager.expectToReceiveStatus(FtpStatusCode.SUCCESSFULLY_TRANSFERRED);
+            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.SUCCESSFULLY_TRANSFERRED);
 
             return Arrays.asList(result.split(FtpPatterns.LINE_SEPARATOR));
         }
     }
 
-    private FtpSocketManager enterPassiveMode() throws IOException, FtpException {
-        socketManager.send(FtpCommands.passiveMode());
+    private FtpConnectionManager enterPassiveMode() throws IOException, FtpException {
+        mainConnectionManager.send(new EnterPassiveModeCommand());
         logger.debug("Sent request to enter passive mode");
 
-        String responseForPassiveMode = socketManager.receiveString();
+        String responseForPassiveMode = mainConnectionManager.receiveString();
         logger.debug("To request for passive mode server responded with: " + responseForPassiveMode);
 
         FtpStatusCode.extractCode(responseForPassiveMode)
@@ -66,12 +78,9 @@ public class FtpClient implements Closeable {
         }
 
         String rawSocketInfo = matcher.group(1);
-        SocketInformation parsedSocketInfo = new SocketInformationParser(rawSocketInfo).parse();
+        ConnectionInfo parsedSocketInfo = new SocketInformationParser(rawSocketInfo).parse();
         try {
-            logger.info("Opening data socket at {}:{}", parsedSocketInfo.getIp(), parsedSocketInfo.getPort());
-            Socket dataSocket = new Socket(parsedSocketInfo.getIp(), parsedSocketInfo.getPort());
-            logger.info("Data socket was initialized successfully");
-            return new FtpSocketManager(dataSocket);
+            return FtpConnectionManager.of(connectionFactory.getConnection(parsedSocketInfo));
         } catch (Exception ex) {
             logger.error("Could not open data socket at given information");
             throw new FtpFailedRequest("Could not open data socket");
@@ -81,9 +90,9 @@ public class FtpClient implements Closeable {
     @Override
     public void close() throws IOException {
         try {
-            socketManager.send(FtpCommands.quit());
+            mainConnectionManager.send(new QuitCommand());
         } finally {
-            socketManager.close();
+            mainConnectionManager.close();
         }
     }
 }

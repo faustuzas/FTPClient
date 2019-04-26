@@ -17,11 +17,14 @@ public enum FtpStatusCode {
     LOGGED_IN("230"),
     ENTERING_PASSIVE_MODE("227"),
     SUCCESSFULLY_TRANSFERRED("226"),
-    WORKING_DIRECTORY("257"),
+    DIRECTORY_CHANGED("250"),
+    DIRECTORY_CREATED("257"),
+    DIRECTORY_FETCHED("257"),
 
     USERNAME_OK("331"),
 
-    BAD_PASSWORD("530");
+    BAD_PASSWORD("530"),
+    DIRECTORY_ALREADY_EXISTS("550");
 
     private static final Logger logger = LoggerFactory.getLogger(FtpStatusCode.class);
     private final String code;

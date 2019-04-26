@@ -1,12 +1,11 @@
 package com.faustas.networks.ftp.utils;
 
-public class SocketInformation {
+public class ConnectionInfo {
 
     private final String ip;
-
     private final int port;
 
-    public SocketInformation(String ip, int port) {
+    public ConnectionInfo(String ip, int port) {
         this.ip = ip;
         this.port = port;
     }

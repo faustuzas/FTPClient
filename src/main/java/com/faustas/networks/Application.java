@@ -15,7 +15,10 @@ public class Application {
         FtpClientConnector connector = new FtpClientConnector.Builder().build();
 
         try(FtpClient client = connector.connect("faustas", "labas")) {
-            logger.info("{}", client.fetchWorkingDirectoryFilesList());
+            client.createDirectory("labas1");
+            client.getWorkingDirectory();
+            client.changeWorkingDirectory("labas1");
+            logger.info("{}", client.listFiles());
         } catch (IOException | FtpException exception) {
             exception.printStackTrace();
         }

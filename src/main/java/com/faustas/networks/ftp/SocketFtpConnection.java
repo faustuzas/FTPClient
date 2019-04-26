@@ -1,32 +1,29 @@
 package com.faustas.networks.ftp;
 
-import com.faustas.networks.ftp.exceptions.FtpException;
-import com.faustas.networks.ftp.utils.Charsets;
+import com.faustas.networks.ftp.utils.ConnectionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.Socket;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
-class FtpSocketManager implements Closeable {
-    private static final Logger logger = LoggerFactory.getLogger(FtpSocketManager.class);
+public class SocketFtpConnection implements FtpConnection {
+    private static final Logger logger = LoggerFactory.getLogger(SocketFtpConnection.class);
 
     private final Socket socket;
     private final BufferedReader reader;
     private final BufferedWriter writer;
 
-    private boolean open = true;
-
-    FtpSocketManager(Socket socket) throws IOException {
-        this.socket = socket;
+    public SocketFtpConnection(ConnectionInfo connectionInfo) throws IOException {
+        this.socket = new Socket(connectionInfo.getIp(), connectionInfo.getPort());
         this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
     }
 
-    void send(String message) throws IOException {
-        checkIfOpen();
-
+    @Override
+    public void send(String message) throws IOException {
         logger.debug("Sending to server: " + message);
 
         String preparedMessage = message + FtpPatterns.LINE_SEPARATOR;
@@ -34,51 +31,31 @@ class FtpSocketManager implements Closeable {
         writer.flush();
     }
 
-    String receiveString() throws IOException {
-        checkIfOpen();
-
+    @Override
+    public String receiveString() throws IOException {
         String message = reader.readLine();
         logger.debug("Received from server: " + message);
         return message;
     }
 
-    String receiveBytesAsString() throws IOException {
-        checkIfOpen();
-
+    @Override
+    public String receiveBytesAsString(Charset charset) throws IOException {
         byte[] buffer = new byte[4096];
         int bytesRead;
 
         StringBuilder builder = new StringBuilder();
         while ((bytesRead = socket.getInputStream().read(buffer)) != -1) {
             byte[] trimmedBuffer = Arrays.copyOf(buffer, bytesRead);
-            builder.append(new String(trimmedBuffer, Charsets.ASCII));
+            builder.append(new String(trimmedBuffer, charset));
         }
 
         return builder.toString();
     }
 
-    void expectToReceiveStatus(FtpStatusCode statusCode) throws IOException, FtpException {
-        FtpStatusCode.extractCode(receiveString())
-                .expect(statusCode);
-    }
-
-    FtpStatusCode receiveStatus() throws IOException, FtpException {
-        return FtpStatusCode.extractCode(receiveString());
-    }
-
-    private void checkIfOpen() {
-        if (!open) {
-            throw new IllegalStateException("Streams are already closed");
-        }
-    }
-
     @Override
     public void close() throws IOException {
-        checkIfOpen();
-
         socket.close();
         writer.close();
         reader.close();
-        open = false;
     }
 }

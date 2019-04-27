@@ -11,6 +11,6 @@ public final class FtpPatterns {
     public static final String LINE_SEPARATOR = "\r\n";
 
     public static final Pattern RESPONSE_CODE = Pattern.compile("^([1-6][0-5][0-9])");
-    public static final Pattern WORKING_DIRECTORY = Pattern.compile(String.format("^%s \"(.*)\"", FtpStatusCode.DIRECTORY_FETCHED.getCode()));
+    public static final Pattern WORKING_DIRECTORY = Pattern.compile(String.format("^%s \"(.*)\"", FtpStatusCode.DIRECTORY_ACTION_SUCCEEDED.getCode()));
     public static final Pattern PASSIVE_SOCKET_DATA = Pattern.compile("[(]([0-9,]*)[)]");
 }

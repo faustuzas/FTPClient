@@ -24,7 +24,7 @@ public class FtpClient implements Closeable {
 
     public void createDirectory(String directory) throws FtpException, IOException {
         mainConnectionManager.send(new MakeDirectoryCommand(directory))
-                .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CREATED);
+                .expectToReceiveStatus(FtpStatusCode.DIRECTORY_ACTION_SUCCEEDED);
     }
 
     public void changeWorkingDirectory(String directory) throws FtpException, IOException {
@@ -36,7 +36,7 @@ public class FtpClient implements Closeable {
         mainConnectionManager.send(new PrintWorkingDirectoryCommand());
         String response = mainConnectionManager.receiveString();
         FtpStatusCode.extractCode(response)
-                .expect(FtpStatusCode.DIRECTORY_FETCHED);
+                .expect(FtpStatusCode.DIRECTORY_ACTION_SUCCEEDED);
 
         Matcher matcher = FtpPatterns.WORKING_DIRECTORY.matcher(response);
         if (!matcher.find()) {

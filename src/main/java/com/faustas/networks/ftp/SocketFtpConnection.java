@@ -7,10 +7,12 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class SocketFtpConnection implements FtpConnection {
-    private static final Logger logger = LoggerFactory.getLogger(SocketFtpConnection.class);
+    private static final int BUFFER_SIZE = 4096;
 
     private final Socket socket;
     private final BufferedReader reader;
@@ -23,39 +25,46 @@ public class SocketFtpConnection implements FtpConnection {
     }
 
     @Override
-    public void send(String message) throws IOException {
-        logger.debug("Sending to server: " + message);
-
+    public void sendString(String message) throws IOException {
         String preparedMessage = message + FtpPatterns.LINE_SEPARATOR;
         writer.write(preparedMessage);
         writer.flush();
     }
 
     @Override
-    public String receiveString() throws IOException {
-        String message = reader.readLine();
-        logger.debug("Received from server: " + message);
-        return message;
+    public void sendStream(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int bytesRead;
+        try (BufferedOutputStream output = new BufferedOutputStream(socket.getOutputStream())) {
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                output.write(buffer, 0, bytesRead);
+            }
+            output.flush();
+        }
     }
 
     @Override
-    public String receiveBytesAsString(Charset charset) throws IOException {
-        byte[] buffer = new byte[4096];
-        int bytesRead;
+    public String receiveString() throws IOException {
+        return reader.readLine();
+    }
 
-        StringBuilder builder = new StringBuilder();
-        while ((bytesRead = socket.getInputStream().read(buffer)) != -1) {
-            byte[] trimmedBuffer = Arrays.copyOf(buffer, bytesRead);
-            builder.append(new String(trimmedBuffer, charset));
+    @Override
+    public byte[] receiveBytes() throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+
+        int bytesRead;
+        byte[] data = new byte[BUFFER_SIZE];
+        while ((bytesRead = socket.getInputStream().read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, bytesRead);
         }
 
-        return builder.toString();
+        return buffer.toByteArray();
     }
 
     @Override
     public void close() throws IOException {
-        socket.close();
         writer.close();
         reader.close();
+        socket.close();
     }
 }

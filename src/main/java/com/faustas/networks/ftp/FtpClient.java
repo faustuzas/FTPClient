@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 
@@ -23,17 +24,41 @@ public class FtpClient implements Closeable {
     }
 
     public void createDirectory(String directory) throws FtpException, IOException {
-        mainConnectionManager.send(new MakeDirectoryCommand(directory))
+        mainConnectionManager.sendCommand(new MakeDirectoryCommand(directory))
                 .expectToReceiveStatus(FtpStatusCode.DIRECTORY_ACTION_SUCCEEDED);
     }
 
     public void changeWorkingDirectory(String directory) throws FtpException, IOException {
-        mainConnectionManager.send(new ChangeWorkingDirectory(directory))
+        mainConnectionManager.sendCommand(new ChangeWorkingDirectory(directory))
             .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CHANGED);
     }
 
+    public void storeFile(File file) throws FtpException, IOException {
+        try (FtpConnectionManager dataConnectionManager = enterPassiveMode()) {
+            mainConnectionManager.sendCommand(new StoreFileCommand(file.getName()))
+                .expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
+
+            enterBinaryMode();
+            dataConnectionManager.sendStream(new FileInputStream(file));
+            enterAsciiMode();
+        }
+
+        mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
+    }
+
+    public void receiveFile(String filename, Path pathToSave) throws FtpException, IOException {
+        try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
+            // Request for list of files
+            mainConnectionManager.sendCommand(new ReceiveFileCommand(filename));
+            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
+
+            dataSocketManager.receiveFile(pathToSave);
+            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
+        }
+    }
+
     public String getWorkingDirectory() throws FtpException, IOException {
-        mainConnectionManager.send(new PrintWorkingDirectoryCommand());
+        mainConnectionManager.sendCommand(new PrintWorkingDirectoryCommand());
         String response = mainConnectionManager.receiveString();
         FtpStatusCode.extractCode(response)
                 .expect(FtpStatusCode.DIRECTORY_ACTION_SUCCEEDED);
@@ -50,19 +75,29 @@ public class FtpClient implements Closeable {
     public List<String> listFiles() throws IOException, FtpException {
         try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
             // Request for list of files
-            mainConnectionManager.send(new ListFilesCommand());
+            mainConnectionManager.sendCommand(new ListFilesCommand());
             mainConnectionManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
 
             String result = dataSocketManager.receiveBytesAsString();
 
-            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.SUCCESSFULLY_TRANSFERRED);
+            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
 
             return Arrays.asList(result.split(FtpPatterns.LINE_SEPARATOR));
         }
     }
 
+    private void enterAsciiMode() throws IOException, FtpException {
+        mainConnectionManager.sendCommand(new EnterAsciiModeCommand())
+                .expectToReceiveStatus(FtpStatusCode.ACTION_COMPLETED);
+    }
+
+    private void enterBinaryMode() throws IOException, FtpException {
+        mainConnectionManager.sendCommand(new EnterBinaryModeCommand())
+                .expectToReceiveStatus(FtpStatusCode.ACTION_COMPLETED);
+    }
+
     private FtpConnectionManager enterPassiveMode() throws IOException, FtpException {
-        mainConnectionManager.send(new EnterPassiveModeCommand());
+        mainConnectionManager.sendCommand(new EnterPassiveModeCommand());
         logger.debug("Sent request to enter passive mode");
 
         String responseForPassiveMode = mainConnectionManager.receiveString();
@@ -90,7 +125,7 @@ public class FtpClient implements Closeable {
     @Override
     public void close() throws IOException {
         try {
-            mainConnectionManager.send(new QuitCommand());
+            mainConnectionManager.sendCommand(new QuitCommand());
         } finally {
             mainConnectionManager.close();
         }

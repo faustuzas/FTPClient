@@ -31,12 +31,12 @@ public class FtpClientConnector {
         connectionManager.expectToReceiveStatus(FtpStatusCode.SERVICE_READY);
 
         // Begin login process by sending username
-        connectionManager.send(new UserLoginCommand(user));
+        connectionManager.sendCommand(new UserLoginCommand(user));
         while (true) {
             FtpStatusCode statusCode = connectionManager.receiveStatus();
 
             if (FtpStatusCode.USERNAME_OK.equals(statusCode)) {
-                connectionManager.send(new PasswordCommand(password));
+                connectionManager.sendCommand(new PasswordCommand(password));
             } else if (FtpStatusCode.BAD_PASSWORD.equals(statusCode)) {
                 logger.debug("FTP denied access with this username-password pair");
                 throw new FtpAuthenticationFailed();

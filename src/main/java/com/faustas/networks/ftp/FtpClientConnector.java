@@ -4,6 +4,7 @@ import com.faustas.networks.ftp.commands.PasswordCommand;
 import com.faustas.networks.ftp.commands.UserLoginCommand;
 import com.faustas.networks.ftp.exceptions.FtpAuthenticationFailed;
 import com.faustas.networks.ftp.exceptions.FtpException;
+import com.faustas.networks.ftp.exceptions.UnrecognizedFtpStatusCode;
 import com.faustas.networks.ftp.utils.ConnectionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,14 +28,10 @@ public class FtpClientConnector {
         FtpConnectionManager connectionManager = FtpConnectionManager.of(
                 ftpConnectionFactory.getConnection(new ConnectionInfo(host, port)));
 
-        // Get initial response, to check if server is alive
-        connectionManager.expectToReceiveStatus(FtpStatusCode.SERVICE_READY);
-
         // Begin login process by sending username
         connectionManager.sendCommand(new UserLoginCommand(user));
         while (true) {
             FtpStatusCode statusCode = connectionManager.receiveStatus();
-
             if (FtpStatusCode.USERNAME_OK.equals(statusCode)) {
                 connectionManager.sendCommand(new PasswordCommand(password));
             } else if (FtpStatusCode.BAD_PASSWORD.equals(statusCode)) {
@@ -43,6 +40,11 @@ public class FtpClientConnector {
             } else if (FtpStatusCode.LOGGED_IN.equals(statusCode)) {
                 logger.info("Successfully logged in");
                 break;
+            } else if (!FtpStatusCode.SERVICE_READY.equals(statusCode)) {
+                // If status code if SERVICE_READY server could have sent some greeting message
+                // which can be ignored. If other status code received
+                // something bad happened
+                throw new UnrecognizedFtpStatusCode(statusCode.getCode());
             }
         }
 

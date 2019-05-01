@@ -1,11 +1,15 @@
 plugins {
     id 'java'
+    id 'application'
 }
 
 group 'com.faustas.networks'
 version '1.0-SNAPSHOT'
-
 sourceCompatibility = 1.8
+
+application {
+    mainClassName = 'com.faustas.networks.Application'
+}
 
 repositories {
     mavenCentral()

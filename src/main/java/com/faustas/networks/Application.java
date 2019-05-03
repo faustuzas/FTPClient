@@ -1,41 +1,97 @@
 package com.faustas.networks;
 
-import com.faustas.networks.ftp.FtpClient;
-import com.faustas.networks.ftp.FtpClientConnector;
+import com.faustas.networks.ftp.*;
 import com.faustas.networks.ftp.exceptions.FtpException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Paths;
 
 public class Application {
     private final static Logger logger = LoggerFactory.getLogger(Application.class);
 
-    private final static String SAMPLE_LOCAL_FILE = "dog.jpg";
-    private final static String PATH_FOR_DOWNLOADED_FILE = "../downloaded_dog.jpg";
+    private final static String DEFAULT_HOSTNAME = "localhost";
+    private final static int DEFAULT_PORT = 21;
 
-    public static void main(String[] args) {
-        FtpClientConnector connector = new FtpClientConnector.Builder().build();
+    public static void main(String[] args) throws IOException {
+        UserInteractor interactor = new ConsoleUserInteractor();
+        String hostname = interactor.ask("Enter hostname", DEFAULT_HOSTNAME);
+        int port = Integer.valueOf(interactor.ask("Enter port", DEFAULT_PORT));
 
-        try(FtpClient client = connector.connect("faustas", "labas")) {
-            client.createDirectory("test_dir");
-            client.changeWorkingDirectory("test_dir");
+        FtpClientConsoleConnector connector = new FtpClientConsoleConnector.Builder()
+                .host(hostname).port(port).userInteractor(interactor).build();
 
-            URL fileLocator = Application.class.getClassLoader().getResource(SAMPLE_LOCAL_FILE);
-            if (fileLocator == null) {
-                logger.error("File {} not found", SAMPLE_LOCAL_FILE);
-                throw new IllegalArgumentException();
+        try (FtpClient client = connector.connect()) {
+            mainLoop:
+            while (true) {
+                interactor.say("Enter command: ");
+                String command = interactor.nextToken().toUpperCase();
+                logger.debug("Command received: {}", command);
+                switch (command) {
+                    case ConsoleCommands.CD:
+                        if (!interactor.hasNext()) {
+                            interactor.say("Specify directory to change");
+                            break;
+                        }
+                        try {
+                            client.changeWorkingDirectory(interactor.nextToken());
+                        } catch (FtpException e) {
+                            interactor.say("Directory not found");
+                        }
+                        break;
+
+                    case ConsoleCommands.PWD:
+                        interactor.say(client.getWorkingDirectory());
+                        break;
+
+                    case ConsoleCommands.LIST:
+                        client.listFiles().forEach(interactor::say);
+                        break;
+
+                    case ConsoleCommands.GET:
+                        logger.debug("Checks if file to get is in buffer");
+                        if (!interactor.hasNext()) {
+                            interactor.say("Specify file to get");
+                            break;
+                        }
+                        logger.debug("Takes file to get from buffer");
+                        String fileToGet = interactor.nextToken();
+                        logger.debug("File to get: {}", fileToGet);
+
+                        if (!interactor.hasNext()) {
+                            interactor.say("Specify where to save file");
+                            break;
+                        }
+                        logger.debug("asking for file to get");
+                        String savePath = interactor.nextToken();
+                        logger.debug("Save path: {}", savePath);
+                        client.receiveFile(fileToGet, Paths.get(savePath));
+                        break;
+
+                    case ConsoleCommands.SEND: {
+                        if (!interactor.hasNext()) {
+                            interactor.say("Specify file to send");
+                            break;
+                        }
+                        File file = new File(interactor.nextToken());
+                        if (!file.exists()) {
+                            interactor.say("File does not exist");
+                            break;
+                        }
+
+                        client.storeFile(file);
+                        break;
+                    }
+                    case ConsoleCommands.CLOSE:
+                        break mainLoop;
+                    default:
+                        interactor.say("Unrecognized command");
+                }
             }
-
-            File localImage = new File(fileLocator.getFile());
-            client.storeFile(localImage);
-            logger.info("Files in current directory:\n {}", client.listFiles());
-            client.receiveFile(SAMPLE_LOCAL_FILE, Paths.get(PATH_FOR_DOWNLOADED_FILE));
-        } catch (IOException | FtpException exception) {
-            exception.printStackTrace();
+        } catch (FtpException ex) {
+            interactor.say(String.format("Something bad happened: %s", ex.getMessage()));
         }
     }
 }

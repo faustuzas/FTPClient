@@ -11,6 +11,10 @@ application {
     mainClassName = 'com.faustas.networks.Application'
 }
 
+run {
+    standardInput = System.in
+}
+
 repositories {
     mavenCentral()
 }

@@ -38,7 +38,7 @@ public class SocketInformationParser {
 
             int port = (Integer.valueOf(tokenizer.nextToken()) * 256) + Integer.valueOf(tokenizer.nextToken());
 
-            logger.info("Socket information parsed successfully: {}:{}", ip, port);
+            logger.debug("Socket information parsed successfully: {}:{}", ip, port);
 
             return new ConnectionInfo(ip, port);
         } catch (NoSuchElementException | NumberFormatException ex) {

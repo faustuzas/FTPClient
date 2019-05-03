@@ -2,6 +2,8 @@ package com.faustas.networks.ftp;
 
 import com.faustas.networks.ftp.commands.FtpCommand;
 import com.faustas.networks.ftp.exceptions.FtpException;
+import com.faustas.networks.ftp.exceptions.NoFtpStatusCodeFound;
+import com.faustas.networks.ftp.exceptions.UnrecognizedFtpStatusCode;
 import com.faustas.networks.ftp.utils.Charsets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +39,18 @@ class FtpConnectionManager implements Closeable {
     }
 
     public String receiveString() throws IOException {
-        String response = ftpConnection.receiveString();
-        logger.debug("Message \"{}\" received", response);
-        return response;
+        while (true) {
+            String response = ftpConnection.receiveString();
+            logger.debug("Message \"{}\" received", response);
+            try {
+                FtpStatusCode.extractCode(response);
+                return response;
+            } catch (NoFtpStatusCodeFound e) {
+                /* Sometimes server sends unnecessary so ignore them */
+            } catch (UnrecognizedFtpStatusCode e) {
+                return response;
+            }
+        }
     }
 
     public void receiveFile(Path pathToSave) throws IOException {

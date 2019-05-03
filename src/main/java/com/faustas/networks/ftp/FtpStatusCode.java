@@ -1,6 +1,5 @@
 package com.faustas.networks.ftp;
 
-import com.faustas.networks.ftp.exceptions.FtpException;
 import com.faustas.networks.ftp.exceptions.NoFtpStatusCodeFound;
 import com.faustas.networks.ftp.exceptions.UnrecognizedFtpStatusCode;
 import com.faustas.networks.ftp.exceptions.WrongStatusCodeReturned;
@@ -27,7 +26,7 @@ public enum FtpStatusCode {
     COULD_NOT_OPEN_DATA_SOCKET("421"),
 
     BAD_PASSWORD("530"),
-    DIRECTORY_ALREADY_EXISTS("550");
+    DIRECTORY_ERROR("550");
 
     private static final Logger logger = LoggerFactory.getLogger(FtpStatusCode.class);
     private final String code;
@@ -40,7 +39,7 @@ public enum FtpStatusCode {
         return code;
     }
 
-    static FtpStatusCode extractCode(String message) throws FtpException {
+    static FtpStatusCode extractCode(String message) throws NoFtpStatusCodeFound, UnrecognizedFtpStatusCode {
         Matcher matcher = FtpPatterns.RESPONSE_CODE.matcher(message);
 
         if (!matcher.find()) {

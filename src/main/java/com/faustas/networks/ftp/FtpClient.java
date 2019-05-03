@@ -48,9 +48,8 @@ public class FtpClient implements Closeable {
 
     public void receiveFile(String filename, Path pathToSave) throws FtpException, IOException {
         try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
-            // Request for list of files
-            mainConnectionManager.sendCommand(new ReceiveFileCommand(filename));
-            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
+            mainConnectionManager.sendCommand(new ReceiveFileCommand(filename))
+                    .expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
 
             dataSocketManager.receiveFile(pathToSave);
             mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
@@ -74,11 +73,10 @@ public class FtpClient implements Closeable {
 
     public List<String> listFiles() throws IOException, FtpException {
         try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
-            mainConnectionManager.sendCommand(new ListFilesCommand());
-            mainConnectionManager.expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
+            mainConnectionManager.sendCommand(new ListFilesCommand())
+                    .expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
 
             String result = dataSocketManager.receiveBytesAsString();
-
             mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
 
             // TODO: Parse returned String list into new FtpFile objects

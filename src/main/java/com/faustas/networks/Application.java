@@ -15,7 +15,7 @@ public class Application {
     private final static String DEFAULT_HOSTNAME = "localhost";
     private final static int DEFAULT_PORT = 21;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, FtpException {
         UserInteractor interactor = new ConsoleUserInteractor();
         String hostname = interactor.ask("Enter hostname", DEFAULT_HOSTNAME);
         int port = Integer.valueOf(interactor.ask("Enter port", DEFAULT_PORT));
@@ -29,69 +29,71 @@ public class Application {
                 interactor.say("Enter command: ");
                 String command = interactor.nextToken().toUpperCase();
                 logger.debug("Command received: {}", command);
-                switch (command) {
-                    case ConsoleCommands.CD:
-                        if (!interactor.hasNext()) {
-                            interactor.say("Specify directory to change");
+                try {
+                    switch (command) {
+                        case ConsoleCommands.CD:
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify directory to change");
+                                break;
+                            }
+                            try {
+                                client.changeWorkingDirectory(interactor.nextToken());
+                            } catch (FtpException e) {
+                                interactor.say("Directory not found");
+                            }
+                            break;
+
+                        case ConsoleCommands.PWD:
+                            interactor.say(client.getWorkingDirectory());
+                            break;
+
+                        case ConsoleCommands.LIST:
+                            client.listFiles().forEach(interactor::say);
+                            break;
+
+                        case ConsoleCommands.GET:
+                            logger.debug("Checks if file to get is in buffer");
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify file to get");
+                                break;
+                            }
+                            logger.debug("Takes file to get from buffer");
+                            String fileToGet = interactor.nextToken();
+                            logger.debug("File to get: {}", fileToGet);
+
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify where to save file");
+                                break;
+                            }
+                            logger.debug("asking for file to get");
+                            String savePath = interactor.nextToken();
+                            logger.debug("Save path: {}", savePath);
+                            client.receiveFile(fileToGet, Paths.get(savePath));
+                            break;
+
+                        case ConsoleCommands.SEND: {
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify file to send");
+                                break;
+                            }
+                            File file = new File(interactor.nextToken());
+                            if (!file.exists()) {
+                                interactor.say("File does not exist");
+                                break;
+                            }
+
+                            client.storeFile(file);
                             break;
                         }
-                        try {
-                            client.changeWorkingDirectory(interactor.nextToken());
-                        } catch (FtpException e) {
-                            interactor.say("Directory not found");
-                        }
-                        break;
-
-                    case ConsoleCommands.PWD:
-                        interactor.say(client.getWorkingDirectory());
-                        break;
-
-                    case ConsoleCommands.LIST:
-                        client.listFiles().forEach(interactor::say);
-                        break;
-
-                    case ConsoleCommands.GET:
-                        logger.debug("Checks if file to get is in buffer");
-                        if (!interactor.hasNext()) {
-                            interactor.say("Specify file to get");
-                            break;
-                        }
-                        logger.debug("Takes file to get from buffer");
-                        String fileToGet = interactor.nextToken();
-                        logger.debug("File to get: {}", fileToGet);
-
-                        if (!interactor.hasNext()) {
-                            interactor.say("Specify where to save file");
-                            break;
-                        }
-                        logger.debug("asking for file to get");
-                        String savePath = interactor.nextToken();
-                        logger.debug("Save path: {}", savePath);
-                        client.receiveFile(fileToGet, Paths.get(savePath));
-                        break;
-
-                    case ConsoleCommands.SEND: {
-                        if (!interactor.hasNext()) {
-                            interactor.say("Specify file to send");
-                            break;
-                        }
-                        File file = new File(interactor.nextToken());
-                        if (!file.exists()) {
-                            interactor.say("File does not exist");
-                            break;
-                        }
-
-                        client.storeFile(file);
-                        break;
+                        case ConsoleCommands.CLOSE:
+                            break mainLoop;
+                        default:
+                            interactor.say("Unrecognized command");
                     }
-                    case ConsoleCommands.CLOSE:
-                        break mainLoop;
-                    default:
-                        interactor.say("Unrecognized command");
+                } catch (FtpException ex) {
+                    interactor.say(String.format("ERROR: %s", ex.getMessage()));
                 }
             }
-        } catch (FtpException ex) {
-            interactor.say(String.format("Something bad happened: %s", ex.getMessage()));
         }
     }
 }

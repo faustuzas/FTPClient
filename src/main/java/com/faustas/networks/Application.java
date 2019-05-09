@@ -48,7 +48,7 @@ public class Application {
                             break;
 
                         case ConsoleCommands.LIST:
-                            client.listFiles().forEach(interactor::say);
+                            client.listFiles().forEach(item -> interactor.say(item.toString()));
                             break;
 
                         case ConsoleCommands.GET:
@@ -71,7 +71,7 @@ public class Application {
                             client.receiveFile(fileToGet, Paths.get(savePath));
                             break;
 
-                        case ConsoleCommands.SEND: {
+                        case ConsoleCommands.SEND:
                             if (!interactor.hasNext()) {
                                 interactor.say("Specify file to send");
                                 break;
@@ -84,7 +84,30 @@ public class Application {
 
                             client.storeFile(file);
                             break;
-                        }
+                        case ConsoleCommands.RMDIR:
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify directory to delete");
+                                break;
+                            }
+
+                            client.removeDir(interactor.nextToken());
+                            break;
+                        case ConsoleCommands.DEL:
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify file to delete");
+                                break;
+                            }
+
+                            client.removeFile(interactor.nextToken());
+                            break;
+                        case ConsoleCommands.MKDIR:
+                            if (!interactor.hasNext()) {
+                                interactor.say("Specify directory to create");
+                                break;
+                            }
+
+                            client.createDirectory(interactor.nextToken());
+                            break;
                         case ConsoleCommands.CLOSE:
                             break mainLoop;
                         default:

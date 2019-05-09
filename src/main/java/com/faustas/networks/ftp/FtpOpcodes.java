@@ -18,4 +18,6 @@ public final class FtpOpcodes {
     public static final String RECEIVE_FILE = "RETR";
     public static final String BINARY_MODE = "TYPE I";
     public static final String ASCII_MODE = "TYPE A";
+    public static final String REMOVE_DIR = "RMD";
+    public static final String REMOVE_FILE = "DELE";
 }

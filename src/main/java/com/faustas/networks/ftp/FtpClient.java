@@ -71,7 +71,7 @@ public class FtpClient implements Closeable {
         return matcher.group(1);
     }
 
-    public List<String> listFiles() throws IOException, FtpException {
+    public List<FtpFile> listFiles() throws IOException, FtpException {
         try(FtpConnectionManager dataSocketManager = enterPassiveMode()) {
             mainConnectionManager.sendCommand(new ListFilesCommand())
                     .expectToReceiveStatus(FtpStatusCode.OPENING_DATA_CHANNEL);
@@ -79,8 +79,19 @@ public class FtpClient implements Closeable {
             String result = dataSocketManager.receiveBytesAsString();
             mainConnectionManager.expectToReceiveStatus(FtpStatusCode.FILE_ACTION_COMPLETED);
 
-            // TODO: Parse returned String list into new FtpFile objects
-            return Arrays.asList(result.split(FtpPatterns.LINE_SEPARATOR));
+            List<FtpFile> files = new ArrayList<>();
+            for (String fileLine : result.split(FtpPatterns.LINE_SEPARATOR)) {
+                Matcher matcher = FtpPatterns.FTP_FILE.matcher(fileLine);
+                if (matcher.find() && matcher.groupCount() == 2) {
+                    boolean isDirectory = matcher.group(1).toLowerCase().equals("d");
+                    String name = matcher.group(2);
+                    files.add(new FtpFile(name, isDirectory));
+                } else {
+                    logger.error("Could not parse: {}", fileLine);
+                }
+            }
+
+            return files;
         }
     }
 
@@ -92,6 +103,29 @@ public class FtpClient implements Closeable {
     private void enterBinaryMode() throws IOException, FtpException {
         mainConnectionManager.sendCommand(new EnterBinaryModeCommand())
                 .expectToReceiveStatus(FtpStatusCode.ACTION_COMPLETED);
+    }
+
+    public void removeDir(String directory) throws IOException, FtpException {
+        mainConnectionManager.sendCommand(new ChangeWorkingDirectory(directory))
+        .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CHANGED);
+        for (FtpFile file : listFiles()) {
+            if (file.isDirectory()) {
+                removeDir(file.getName());
+            } else {
+                removeFile(file.getName());
+            }
+        }
+        mainConnectionManager.sendCommand(new ChangeWorkingDirectory(".."))
+                .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CHANGED);
+
+        mainConnectionManager.sendCommand(new RemoveDirectoryCommand(directory))
+            .expectToReceiveStatus(FtpStatusCode.DIRECTORY_CHANGED);
+    }
+
+    public void removeFile(String file) throws IOException, FtpException {
+        mainConnectionManager.sendCommand(new RemoveFileCommand(file));
+
+        logger.info(mainConnectionManager.receiveString());
     }
 
     private FtpConnectionManager enterPassiveMode() throws IOException, FtpException {

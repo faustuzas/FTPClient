@@ -25,7 +25,7 @@ public class FtpClientConsoleConnector {
                 ftpConnectionFactory.getConnection(new ConnectionInfo(host, port)));
 
         while (true) {
-            String username = userInteractor.ask("Enter your username: ", "anonymous");
+            String username = userInteractor.ask("Enter your username: ", "faustas");
             if (username == null) {
                 userInteractor.say("Username cannot be empty");
                 continue;
@@ -35,7 +35,7 @@ public class FtpClientConsoleConnector {
             while (true) {
                 FtpStatusCode statusCode = connectionManager.receiveStatus();
                 if (FtpStatusCode.USERNAME_OK.equals(statusCode)) {
-                    String password = userInteractor.ask("Username accepted. Enter your password", "anonymous");
+                    String password = userInteractor.ask("Username accepted. Enter your password", "labas");
                     connectionManager.sendCommand(new PasswordCommand(password));
                 } else if (FtpStatusCode.BAD_PASSWORD.equals(statusCode)) {
                     userInteractor.say("Wrong username/password.");
